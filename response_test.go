@@ -442,6 +442,56 @@ func TestSupportsAttributes(t *testing.T) {
 	}
 }
 
+func TestSupportsMetaAnnotation(t *testing.T) {
+	modifiedAt, err := time.Parse(time.RFC3339, "2006-01-02T15:04:05Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testModel := &Blog{
+		ID:              5,
+		Title:           "Title 1",
+		CreatedAt:       time.Now(),
+		ModifiedAt:      modifiedAt,
+		DeletedAt:       modifiedAt,
+		ResourceVersion: "etag987abc",
+	}
+
+	out := bytes.NewBuffer(nil)
+	if err := MarshalPayload(out, testModel); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := new(OnePayload)
+	if err := json.NewDecoder(out).Decode(resp); err != nil {
+		t.Fatal(err)
+	}
+
+	data := resp.Data
+
+	if data.Meta == nil {
+		t.Fatalf("Expected meta")
+	}
+
+	if (*data.Meta)["resource_version"] != "etag987abc" {
+		t.Fatalf("Meta hash not populating time fields correctly %#v", *data.Meta)
+	}
+
+	// encoding/json automatically makes this a float64 because json just specifies "number"
+	mod, ok := (*data.Meta)["modified_at"].(float64)
+	if !ok {
+		t.Fatal("Epoch time is not accessible as a float64")
+	}
+	actualModified := int64(mod)
+	if actualModified != modifiedAt.Unix() {
+		t.Fatalf("Meta hash not populating epoch time fields correctly %T: %T", modifiedAt.Unix(), actualModified)
+	}
+
+	if (*data.Meta)["deleted_at"] != modifiedAt.Format(time.RFC3339) {
+		t.Fatalf("Meta hash not populating iso8601 time fields correctly %#v %#v", modifiedAt.Format(time.RFC3339), (*data.Meta)["deleted_at"])
+	}
+}
+
 func TestOmitsZeroTimes(t *testing.T) {
 	testModel := &Blog{
 		ID:        5,

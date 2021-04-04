@@ -863,6 +863,38 @@ func TestUnmarshalCustomTypeAttributes_ErrInvalidType(t *testing.T) {
 	}
 }
 
+func TestUnmarshalPayloadMeta(t *testing.T) {
+	modifiedAt, err := time.Parse(time.RFC3339, "2006-01-02T15:04:05Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := &OnePayload{
+		Data: &Node{
+			Type: "heavymeta",
+			Meta: &Meta{
+				"modified_at": modifiedAt.Unix(), // timezone is lost here
+			},
+		},
+	}
+
+	in := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(in).Encode(payload); err != nil {
+		t.Fatal(err)
+	}
+
+	out := new(Blog)
+
+	if err := UnmarshalPayload(in, out); err != nil {
+		t.Fatal(err)
+	}
+
+	actual := out.ModifiedAt.In(time.UTC) // have to re-add the timezone here
+
+	if actual != modifiedAt {
+		t.Fatalf("Reading the meta failed %#v != %#v", actual, modifiedAt)
+	}
+}
+
 func samplePayloadWithoutIncluded() map[string]interface{} {
 	return map[string]interface{}{
 		"data": map[string]interface{}{
